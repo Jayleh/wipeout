@@ -1,5 +1,6 @@
+import datetime as dt
 from flask import Flask, jsonify
-from sqlalchemy import create_engine, func
+from sqlalchemy import create_engine
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session
 import numpy as np
@@ -47,9 +48,6 @@ def precipitation():
     results = session.query(Measurement.date, Measurement.prcp).\
         filter(Measurement.date >= "2017-01-01").all()
 
-    # Convert list of tuples into normal list
-    # prcp_list = list(np.ravel(results))
-
     # Create a list of dicts with `date` and `prcp` as the keys
     prcp_data = []
     for result in results:
@@ -89,9 +87,6 @@ def tobs():
     results = session.query(Measurement.date, Measurement.tobs).\
         filter(Measurement.date >= "2017-01-01").all()
 
-    # Convert list of tuples into normal list
-    # prcp_list = list(np.ravel(results))
-
     # Create a list of dicts with `date` and `tobs` as the keys
     tobs_data = []
     for result in results:
@@ -104,7 +99,78 @@ def tobs():
     return jsonify(tobs_data)
 
 
+def daily_normals(a_date):
+    """
+    Grab min, avg, max temperatures for historic dates.
+    """
+
+    # Query to grab all historic temperatures by date
+    temps = session.query(Measurement.tobs).\
+        filter(Measurement.date.like(f"%{a_date}")).all()
+
+    # Convert list of tuples into normal list
+    temps = list(np.ravel(temps))
+
+    # Calculate min, avg, and max temps
+    min_temp = min(temps)
+    avg_temp = np.mean(temps)
+    max_temp = max(temps)
+
+    return min_temp, avg_temp, max_temp
+
+
 @app.route("/api/v1.0/<start>")
+def date(start):
+    # Query precipitation data from last year
+    results = session.query(Measurement.date).\
+        filter(Measurement.date >= start).all()
+
+    # Convert list of tuples into normal list
+    date_list = list(np.ravel(results))
+
+    # Create month day list
+    month_day_list = []
+
+    for date in date_list:
+
+        # Convert datetime to string
+        a_date = dt.datetime.strptime(date, "%Y-%m-%d")
+
+        # Grab only month and day
+        month_day = f"{a_date.month}-{a_date.day}"
+
+        # Append month_day to list
+        month_day_list.append(month_day)
+
+    # Create lists to hold min, avg, and max temperatures
+    min_temp_list = []
+    avg_temp_list = []
+    max_temp_list = []
+
+    # Loop through each date in trip date list
+    for date in month_day_list:
+
+        # Pass date into daily_normals function
+        min_temp, avg_temp, max_temp = daily_normals(date)
+
+        # Append returns to lists
+        min_temp_list.append(min_temp)
+        avg_temp_list.append(avg_temp)
+        max_temp_list.append(max_temp)
+
+    # Create a dictionary from the row data and append to a list of temp_data
+    temp_data = []
+    for i, date in enumerate(date_list):
+        row = {}
+        row["date"] = date
+        row["tmin"] = min_temp_list[i]
+        row["tavg"] = avg_temp_list[i]
+        row["tmax"] = max_temp_list[i]
+        temp_data.append(row)
+
+    return jsonify(temp_data)
+
+
 @app.route("/api/v1.0/<start>/<end>")
 def date_range():
     # jsonify(dictionary)
