@@ -111,10 +111,10 @@ def daily_normals(a_date):
     # Convert list of tuples into normal list
     temps = list(np.ravel(temps))
 
-    # Calculate min, avg, and max temps
-    min_temp = min(temps)
-    avg_temp = np.mean(temps)
-    max_temp = max(temps)
+    # Calculate min, avg, and max temps, change to float to be json serializable
+    min_temp = min(temps).astype(np.float)
+    avg_temp = np.mean(temps).round(1).astype(np.float)
+    max_temp = max(temps).astype(np.float)
 
     return min_temp, avg_temp, max_temp
 
@@ -137,7 +137,7 @@ def date(start):
         a_date = dt.datetime.strptime(date, "%Y-%m-%d")
 
         # Grab only month and day
-        month_day = f"{a_date.month}-{a_date.day}"
+        month_day = f"{dt.datetime.strftime(a_date, '%m-%d')}"
 
         # Append month_day to list
         month_day_list.append(month_day)
@@ -172,9 +172,55 @@ def date(start):
 
 
 @app.route("/api/v1.0/<start>/<end>")
-def date_range():
-    # jsonify(dictionary)
-    pass
+def date_range(start, end):
+    # Query precipitation data from last year
+    results = session.query(Measurement.date).\
+        filter(Measurement.date.between(start, end)).all()
+
+    # Convert list of tuples into normal list
+    date_list = list(np.ravel(results))
+
+    # Create month day list
+    month_day_list = []
+
+    for date in date_list:
+
+        # Convert datetime to string
+        a_date = dt.datetime.strptime(date, "%Y-%m-%d")
+
+        # Grab only month and day
+        month_day = f"{dt.datetime.strftime(a_date, '%m-%d')}"
+
+        # Append month_day to list
+        month_day_list.append(month_day)
+
+    # Create lists to hold min, avg, and max temperatures
+    min_temp_list = []
+    avg_temp_list = []
+    max_temp_list = []
+
+    # Loop through each date in trip date list
+    for date in month_day_list:
+
+        # Pass date into daily_normals function
+        min_temp, avg_temp, max_temp = daily_normals(date)
+
+        # Append returns to lists
+        min_temp_list.append(min_temp)
+        avg_temp_list.append(avg_temp)
+        max_temp_list.append(max_temp)
+
+    # Create a dictionary from the row data and append to a list of temp_data
+    temp_data = []
+    for i, date in enumerate(date_list):
+        row = {}
+        row["date"] = date
+        row["tmin"] = min_temp_list[i]
+        row["tavg"] = avg_temp_list[i]
+        row["tmax"] = max_temp_list[i]
+        temp_data.append(row)
+
+    return jsonify(temp_data)
 
 
 if __name__ == '__main__':
