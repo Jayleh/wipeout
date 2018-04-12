@@ -31,14 +31,19 @@ def home():
     """
     List all available api routes.
     """
+    print("Server received request for 'home' page...")
     return (
-        f"Available Routes:<br/><br/>"
-        f"/api/v1.0/precipitation — List of precipitation (prcp) data for 2017<br/>"
-        f"/api/v1.0/stations — List of stations<br/>"
-        f"/api/v1.0/tobs — List of temperature observations (tobs) for 2017<br/>"
-        f"/api/v1.0/start-date/end-date"
-        f" — List of the minimum, average, and max temperatures "
-        "for a given start or start-end range<br/>"
+        f"<h1>Hawaii Climate API</h1>"
+        f"Available Routes:<br>"
+        f"<ul><li><a href='/api/v1.0/precipitation'>/api/v1.0/precipitation</a> — List "
+        "of precipitation (prcp) data for 2017</li>"
+        f"<li><a href='/api/v1.0/stations'>/api/v1.0/stations</a> — List of stations</li>"
+        f"<li><a href='/api/v1.0/tobs'>/api/v1.0/tobs</a> — List of temperature "
+        "observations (tobs) for 2017</li>"
+        f"<li>/api/v1.0/start-date — List of the minimum, average, and max temperatures "
+        "for a given start date to the latest date</li>"
+        f"<li>/api/v1.0/start-date/end-date — List of the minimum, average, and max temperatures "
+        "for a given start-end date range</li></ul>"
     )
 
 
@@ -56,7 +61,7 @@ def precipitation():
         row["prcp"] = float(result[1])
         prcp_data.append(row)
 
-    print("Server received request for 'About' page...")
+    print("Server received request for 'precipitation' page...")
     return jsonify(prcp_data)
 
 
@@ -77,7 +82,7 @@ def stations():
         row["elevation"] = result[4]
         station_data.append(row)
 
-    print("Server received request for 'About' page...")
+    print("Server received request for 'stations' page...")
     return jsonify(station_data)
 
 
@@ -95,7 +100,7 @@ def tobs():
         row["tobs"] = float(result[1])
         tobs_data.append(row)
 
-    print("Server received request for 'About' page...")
+    print("Server received request for 'tobs' page...")
     return jsonify(tobs_data)
 
 
@@ -121,6 +126,28 @@ def daily_normals(a_date):
 
 @app.route("/api/v1.0/<start>")
 def date(start):
+    # Print request
+    print("Server received request for 'date' page...")
+
+    try:
+        # Check to see if date format is correct
+        dt.datetime.strptime(start, "%Y-%m-%d")
+    except ValueError:
+        return jsonify({"error": f"Invalid date format of '{start}'. "
+                        "Format must be 'YYYY-MM-DD'."}), 404
+
+    # Grab earliest date and latest date
+    earliest_date = session.query(Measurement.date).order_by(Measurement.date).first()
+    latest_date = session.query(Measurement.date).order_by(Measurement.date.desc()).first()
+
+    # Check if date is in dataset
+    if dt.datetime.strptime(start, "%Y-%m-%d") < dt.datetime.strptime(earliest_date[0], "%Y-%m-%d"):
+        return jsonify({"error": f"Invalid date of '{start}'. "
+                        f"Earliest date is {earliest_date[0]}."}), 404
+    elif dt.datetime.strptime(start, "%Y-%m-%d") > dt.datetime.strptime(latest_date[0], "%Y-%m-%d"):
+        return jsonify({"error": f"Invalid date of '{start}'. "
+                        f"Latest date is {latest_date[0]}."}), 404
+
     # Query precipitation data from last year
     results = session.query(Measurement.date).\
         filter(Measurement.date >= start).all()
@@ -173,6 +200,17 @@ def date(start):
 
 @app.route("/api/v1.0/<start>/<end>")
 def date_range(start, end):
+    # Print request
+    print("Server received request for 'date range' page...")
+
+    try:
+        # Check to see if date format is correct
+        dt.datetime.strptime(start, "%Y-%m-%d")
+        dt.datetime.strptime(end, "%Y-%m-%d")
+    except ValueError:
+        return jsonify({"error": f"Invalid date format of '{start}/{end}'. "
+                        "Format must be 'YYYY-MM-DD'."}), 404
+
     # Query precipitation data from last year
     results = session.query(Measurement.date).\
         filter(Measurement.date.between(start, end)).all()
