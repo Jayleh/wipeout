@@ -1,2 +1,2 @@
 # wipeout
-Climate Analysis API
+Hawaii Climate Analysis API
